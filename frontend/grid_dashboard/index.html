@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Authority Dashboard</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        .container { max-width: 800px; }
+        .success { color: var(--accent-color); font-weight: bold; }
+        .fail { color: var(--danger-color); font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Grid Authority Control Room</h2>
+        
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+            <h3>Blockchain Ledger</h3>
+            <button id="refresh-btn" style="width: auto;">Refresh Data</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Transaction Hash (SHA-3)</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="ledger-body">
+                <!-- Transactions populated here via JS -->
+                 <tr><td colspan="4" style="text-align:center; color: var(--text-secondary)">Listening for blocks...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="grid.js"></script>
+</body>
+</html>

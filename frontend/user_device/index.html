@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Owner App</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>EV Owner App</h2>
+        <form id="payment-form">
+            <div class="form-group">
+                <label for="kiosk-string">Kiosk Session String (Copy from Kiosk):</label>
+                <input type="text" id="kiosk-string" placeholder="Paste the ASCON string here" required>
+            </div>
+
+            <div class="form-group">
+                <label for="vmid">Vehicle Mobile ID (VMID):</label>
+                <input type="text" id="vmid" placeholder="e.g., EV-987654321" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="amount">Charging Amount ($):</label>
+                <input type="number" id="amount" placeholder="20" required min="1">
+            </div>
+            
+            <div class="form-group">
+                <label for="pin">Authorization PIN:</label>
+                <input type="password" id="pin" placeholder="Enter PIN" required>
+            </div>
+            
+            <button type="submit">Authorize Payment</button>
+        </form>
+        <div id="status" class="status-badge">Awaiting Authorization...</div>
+    </div>
+    
+    <script src="user.js"></script>
+</body>
+</html>

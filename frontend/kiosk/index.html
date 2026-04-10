@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Charging Kiosk UI</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Charging Kiosk</h2>
+        <p>Station ID: <strong>ST-ZONE-1</strong></p>
+        
+        <div class="form-group">
+            <label>Encrypted Session String (Generated via ASCON)</label>
+            <div id="qr-string" class="crypto-string">Loading network...</div>
+        </div>
+        
+        <button id="generate-btn">Generate New Session String</button>
+        
+        <div id="status" class="status-badge">Waiting for user...</div>
+    </div>
+    
+    <script src="kiosk.js"></script>
+</body>
+</html>
