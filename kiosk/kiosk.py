@@ -1,27 +1,79 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from crypto.ascon import decrypt_ascon, encrypt_ascon
+from crypto.sha3 import sha3_bytes
 from grid.grid import GridServer
 
 
 @dataclass
 class Kiosk:
-    """Placeholder kiosk that relays transactions to the grid."""
+    """Kiosk service that handles QR generation, verification, and payment relay."""
 
     kiosk_id: str
     grid: GridServer
     fid: str = "FID-PLACEHOLDER"
+    qr_payload: str = ""
+    crypto_key: bytes = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Derive a stable per-kiosk key used for ASCON QR payloads."""
+        self.crypto_key = sha3_bytes(f"kiosk:{self.kiosk_id}")[:16]
+
+
+    # -------------------------------------------------------------------------
+    # Franchise Endpoint Functions
+    # -------------------------------------------------------------------------
+
+    def set_franchise_identity(self, fid: str) -> None:
+        """Set the active franchise identity for this kiosk."""
+        self.fid = fid
 
     def generate_qr_payload(self) -> str:
-        """TODO: encrypt FID (or VFID) using ASCON and return QR payload string."""
-        return "ENCRYPTED-FID-PLACEHOLDER"
+        """Encrypt the kiosk's FID and return a QR-ready payload string."""
+        self.qr_payload = encrypt_ascon(self.fid, self.crypto_key)
+        return self.qr_payload
+
+    def get_franchise_qr_payload(self) -> str:
+        """Return the current QR payload for display on the kiosk screen."""
+        if not self.qr_payload:
+            return self.generate_qr_payload()
+        return self.qr_payload
+
+
+    # -------------------------------------------------------------------------
+    # User Endpoint Functions
+    # -------------------------------------------------------------------------
 
     def verify_qr_payload(self, qr_payload: str) -> bool:
-        """TODO: decrypt QR payload and validate station identity."""
-        _ = qr_payload
-        return True
+        """Decrypt a QR payload and confirm it matches the kiosk FID."""
+        recovered_fid = decrypt_ascon(qr_payload, self.crypto_key)
+        return bool(recovered_fid) and recovered_fid == self.fid
 
-    def forward_transaction(self, vmid: str, pin: str, amount: float, qr_payload: str) -> bool:
-        """Forward request to grid after local QR verification."""
+    def build_user_payment_request(self, vmid: str, pin: str, amount: float, qr_payload: str) -> dict[str, object]:
+        """Build the kiosk-side request object from user supplied data."""
+        return {
+            "vmid": vmid,
+            "pin": pin,
+            "amount": amount,
+            "qr_payload": qr_payload,
+        }
+
+
+    def process_user_payment(self, vmid: str, pin: str, amount: float, qr_payload: str) -> bool:
+        """Validate the user QR payload and send the payment to the grid."""
         if not self.verify_qr_payload(qr_payload):
             return False
+        return self.forward_transaction(vmid=vmid, pin=pin, amount=amount)
+
+
+    # -------------------------------------------------------------------------
+    # Grid Endpoint Functions
+    # -------------------------------------------------------------------------
+
+    def forward_transaction(self, vmid: str, pin: str, amount: float) -> bool:
+        """Forward a validated payment request to the grid server."""
         return self.grid.process_transaction(vmid=vmid, pin=pin, amount=amount, fid=self.fid)
+
+    def display_status(self, approved: bool) -> str:
+        """Return a simple kiosk status message for the transaction result."""
+        return "APPROVED" if approved else "REJECTED"
