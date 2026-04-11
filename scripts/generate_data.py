@@ -55,7 +55,7 @@ def generate_data():
     print(f"Generating 10 realistic EV Owners into {USERS_CSV}...")
     with open(USERS_CSV, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["uid", "vmid", "name", "mobile", "pin_hash", "balance"])
+        writer.writerow(["uid", "vmid", "name", "mobile", "pin_hash", "balance", "active"])
         
         for name in USER_NAMES:
             mobile = f"{random.randint(6, 9)}{random.randint(100000000, 999999999)}"
@@ -66,7 +66,7 @@ def generate_data():
             pin_hash = sha3_hex(f"pin:{pin}")
             balance = round(random.uniform(50.0, 500.0), 2)
             
-            writer.writerow([uid, vmid, name, mobile, pin_hash, str(balance)])
+            writer.writerow([uid, vmid, name, mobile, pin_hash, str(balance), "True"])
             user_credentials.append((name, mobile, vmid, pin))
 
     print(f"Writing cleartext testing credentials to {TEST_CREDENTIALS_TXT}...")
@@ -76,7 +76,7 @@ def generate_data():
         
         f.write("--- EV OWNERS (Use these to test the Frontend UI) ---\n")
         for u_name, mobile, vmid, pin in user_credentials:
-            f.write(f"Name: {u_name.ljust(15)} | Mobile: {mobile} | VMID: {vmid} | PIN: {pin}\n")
+            f.write(f"Name: {u_name.ljust(15)} | Mobile: {mobile} | VMID: {vmid} | PIN: {pin} | Active: True\n")
             
         f.write("\n--- FRANCHISES (For backend/kiosk testing) ---\n")
         for f_name, fid, password in franchise_credentials:

@@ -20,4 +20,4 @@
 - [x] **Grid Authentication**: Ensure the grid correctly decrypts the ASCON string back to the FID, and verifies the EV Owner's VMID, hashed PIN, and account balance. *DONE!*
 - [x] **Blockchain Mining**: Once validated, ensure the transaction is hashed (SHA-3) and mined into the Grid's central blockchain. *DONE!*
 - [x] **Franchise/Grid UI Updates**: Connect `frontend/grid_dashboard/grid.js` to `GET /api/grid/ledger` so it live-updates with pass/fail results and the newly mined blocks. *DONE!*
-- [ ] **Handle Edge Cases**: Hook up the UI for triggering the Refund/Dispute process (Hardware Dispense Failures) from the Grid Dashboard.
+- [x] **Handle Edge Cases**: Hook up the UI for triggering the Refund/Dispute process (Hardware Dispense Failures) and Account Deactivation tools from the Grid Dashboard. *DONE!*

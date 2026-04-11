@@ -77,7 +77,18 @@ def user_close() -> object:
     ok = grid.close_user_account(vmid_input)
     if not ok:
         return jsonify({"ok": False, "message": "VMID not found"}), 404
-    return jsonify({"ok": True, "message": "User account closed"})
+    sync_users_to_csv(grid)
+    return jsonify({"ok": True, "message": "User account deactivated"})
+
+@app.post("/api/user/activate")
+def user_activate() -> object:
+    data = request.get_json(silent=True) or {}
+    vmid_input = str(data.get("vmid", ""))
+    ok = grid.activate_user_account(vmid_input)
+    if not ok:
+        return jsonify({"ok": False, "message": "VMID not found"}), 404
+    sync_users_to_csv(grid)
+    return jsonify({"ok": True, "message": "User account activated"})
 
 
 @app.post("/api/franchise/register")
@@ -180,6 +191,13 @@ def grid_refund() -> object:
     result = grid.get_last_result()
     status = 200 if ok else 400
     return jsonify(result), status
+
+@app.post("/api/kiosk/simulate_failure")
+def simulate_kiosk_failure() -> object:
+    data = request.get_json(silent=True) or {}
+    fail_mode = bool(data.get("fail", False))
+    kiosk.simulate_machine_failure = fail_mode
+    return jsonify({"ok": True, "simulate_machine_failure": kiosk.simulate_machine_failure})
 
 
 @app.post("/api/user/authorize")

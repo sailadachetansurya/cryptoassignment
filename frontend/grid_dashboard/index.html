@@ -6,34 +6,78 @@
     <title>Grid Authority Dashboard</title>
     <link rel="stylesheet" href="../style.css">
     <style>
-        .container { max-width: 800px; }
         .success { color: var(--accent-color); font-weight: bold; }
         .fail { color: var(--danger-color); font-weight: bold; }
+        /* Switch CSS */
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--surface-dark); transition: .4s; border-radius: 24px; border: 1px solid var(--border-color); }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 3px; background-color: var(--text-primary); transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--danger-color); border-color: var(--danger-color); }
+        input:checked + .slider:before { transform: translateX(24px); }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container" style="max-width: 900px;">
         <h2>Grid Authority Control Room</h2>
         
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-            <h3>Blockchain Ledger</h3>
-            <button id="refresh-btn" style="width: auto;">Refresh Data</button>
+        <div style="background-color: var(--surface-light); padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+            <h3 style="margin-top: 0; color: var(--accent-light);">Edge Case Simulators (Grader Tools)</h3>
+            <p style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 15px;">Use these tools to manually trigger system-level edge cases.</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <form id="account-status-form" style="margin: 0; display: flex; flex-direction: column; gap: 10px;">
+                    <label style="font-size: 0.9em; font-weight: bold;">Manage EV Owner Account (Active/Close)</label>
+                    <input type="text" id="vmid-status" placeholder="Enter VMID (EV-...)" required style="padding: 8px;">
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" id="btn-activate" style="flex: 1; padding: 8px; background-color: var(--success-color);">Activate</button>
+                        <button type="button" id="btn-deactivate" style="flex: 1; padding: 8px; background-color: var(--danger-color);">Deactivate</button>
+                    </div>
+                </form>
+
+                <div style="margin: 0; display: flex; flex-direction: column; gap: 10px; justify-content: center;">
+                    <label style="font-size: 0.9em; font-weight: bold;">Simulate Hardware Failure</label>
+                    <div style="display: flex; align-items: center; gap: 15px; margin-top: 5px;">
+                        <span style="font-size: 0.85em; color: var(--text-secondary);">Normal Mode</span>
+                        <label class="switch">
+                            <input type="checkbox" id="machine-fail-toggle">
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-size: 0.85em; color: var(--danger-color);">Failure Mode</span>
+                    </div>
+                    <p style="font-size: 0.75em; color: var(--text-secondary); margin: 5px 0 0 0; line-height: 1.3;">
+                        If switched On, the next EV payment will succeed instantly, but the kiosk hardware will fail to dispense. The Grid will automatically detect the failure and generate a reverse blockchain transaction to refund the user.
+                    </p>
+                </div>
+            </div>
+            <div id="sim-status" class="status-badge" style="display: none; margin-top: 15px;"></div>
         </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Timestamp</th>
-                    <th>Transaction Hash (SHA-3)</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody id="ledger-body">
-                <!-- Transactions populated here via JS -->
-                 <tr><td colspan="4" style="text-align:center; color: var(--text-secondary)">Listening for blocks...</td></tr>
-            </tbody>
-        </table>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center;">
+            <h3 style="margin: 0;">Blockchain Ledger</h3>
+            <button id="refresh-btn" style="width: auto; padding: 8px 15px;">Refresh Data</button>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th style="width: 18%;">Timestamp</th>
+                        <th style="width: 50%;">Transaction Hash (SHA-3)</th>
+                        <th style="width: 12%;">Amount</th>
+                        <th style="width: 20%;">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="ledger-body">
+                    <!-- Transactions populated here via JS -->
+                     <tr><td colspan="4" style="text-align:center; color: var(--text-secondary)">Listening for blocks...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 30px; text-align: center;">
+            <a href="../index.html" style="color: var(--accent-color);">Back to Hub</a>
+        </div>
     </div>
 
     <script src="grid.js"></script>

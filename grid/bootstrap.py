@@ -29,9 +29,9 @@ def sync_users_to_csv(grid: GridServer) -> None:
     """Overwrite the CSV keeping it in sync with memory balance."""
     with open(USERS_CSV, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["uid", "vmid", "name", "mobile", "pin_hash", "balance"])
+        writer.writerow(["uid", "vmid", "name", "mobile", "pin_hash", "balance", "active"])
         for uid, user in grid.users.items():
-            writer.writerow([uid, user["vmid"], user.get("name", "Unknown"), user["mobile"], user["pin_hash"], str(user["balance"])])
+            writer.writerow([uid, user["vmid"], user.get("name", "Unknown"), user["mobile"], user["pin_hash"], str(user["balance"]), str(user.get("active", True))])
 
 def sync_franchises_to_csv(grid: GridServer) -> None:
     """Overwrite the CSV keeping it in sync with memory balance."""
@@ -71,13 +71,16 @@ def seed_required_grid_data(grid: GridServer) -> dict[str, object]:
             uid = row["uid"]
             vmid = row["vmid"]
             mobile = row["mobile"]
+            active_str = row.get("active", "True")
+            is_active = active_str.lower() in ("true", "1", "yes")
+
             grid.users[uid] = {
                 "name": row["name"],
                 "mobile": mobile,
                 "pin_hash": row["pin_hash"], # Never plaintext in CSV
                 "balance": float(row["balance"]),
                 "vmid": vmid,
-                "active": True,
+                "active": is_active,
             }
             grid.users_by_vmid[vmid] = uid
             # The PIN is not sent here since it shouldn't be read from the DB into memory

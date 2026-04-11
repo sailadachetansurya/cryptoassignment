@@ -15,6 +15,7 @@ class Kiosk:
     grid: GridServer
     fid: str = "FID-PLACEHOLDER"
     qr_payload: str = ""
+    simulate_machine_failure: bool = False
     grid_master_key: bytes = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -65,6 +66,18 @@ class Kiosk:
         """Process payment and return detailed status payload."""
         approved = self.process_user_payment(vmid=vmid, pin=pin, amount=amount, qr_payload=qr_payload)
         result = self.grid.get_last_result()
+
+        if approved and self.simulate_machine_failure:
+            txn_id = result.get("txn_id")
+            if txn_id:
+                # Automatically reverse the transaction to simulate the machine dispense failing
+                self.grid.refund_transaction(txn_id=txn_id, reason="Simulated Machine Failure")
+                # But to the user app, we want to return a failure so they know
+                result["approved"] = False
+                result["status"] = "DISPENSE_FAILED"
+                result["message"] = "Payment authorized, but kiosk hardware failed to dispense. Wallet refunded."
+                return result
+
         result["approved"] = approved
         result["status"] = self.display_status(approved)
         return result

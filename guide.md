@@ -29,6 +29,21 @@ Note: The PDF describes 3 physical devices and 4 logical entities. Your simulati
 - Treat kiosk-side scanned payload as untrusted input.
 - Do not use QR for location disclosure. Use FID to map location server-side if needed.
 
+## 4. Edge Cases & Documented Assumptions
+As per the project requirements, the system natively handles practical edge cases, governed by the following assumptions:
+
+### 4.1 Account Closure Mid-Session
+- **Scenario:** The user initiates an EV charging session at a kiosk, but their EV Owner Account gets deactivated or closed before authorization completes.
+- **Assumption:** We assume the Grid Authority performs a real-time validation of the account's active status at the exact moment of transaction processing. If the `active` flag evaluates to `False`, the transaction is strictly rejected (`ACCOUNT_CLOSED`) before any value is exchanged or any block is mined.
+
+### 4.2 Insufficient Balance During Transaction
+- **Scenario:** The EV Owner authorizes a payment amount that exceeds their current wallet balance.
+- **Assumption:** We assume transactions are processed atomically. The Grid Authority checks the user's available balance right when the transaction is received. If the requested amount is strictly greater than the balance, it is instantly rejected (`INSUFFICIENT_BALANCE`) and the charging kiosk is notified to reject the plug.
+
+### 4.3 Hardware Failure After Successful Payment
+- **Scenario:** The payment fully succeeds, the block is mined, and the franchise receives the funds—but the actual kiosk hardware subsequently fails to dispense electricity.
+- **Assumption:** We assume that blockchains must remain strictly immutable. Therefore, failed deliveries must be reported to the Grid Authority (the central arbiter) which then initiates a **Refund Transaction**. Instead of modifying or deleting the old block, the Grid appends a brand *new* block mapping the funds back to the user, marked specifically with a `dispute_or_refund_flag` set to `True`. This ensures financial accuracy while preserving a perfectly honest, cryptographically linked audit trail.
+
 ## 4. Registration and Setup Flow
 Registration is one-time and happens before charging transactions.
 

@@ -77,6 +77,14 @@ class GridServer:
         self.users[uid]["active"] = False
         return True
 
+    def activate_user_account(self, vmid: str) -> bool:
+        """Re-activate a user account."""
+        uid = self.users_by_vmid.get(vmid)
+        if not uid:
+            return False
+        self.users[uid]["active"] = True
+        return True
+
     def register_franchise(
         self,
         name: str,
