@@ -1,3 +1,21 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const amountInput = document.getElementById('amount');
+    const estKwhDisplay = document.getElementById('est-kwh');
+    const rateDisplay = document.getElementById('rate');
+    const RATE_PER_KWH = 0.45; // Simulated cost per kWh (EV "litres" equivalent)
+    
+    rateDisplay.textContent = RATE_PER_KWH.toFixed(2);
+    
+    amountInput.addEventListener('input', () => {
+        const amt = parseFloat(amountInput.value);
+        if(!isNaN(amt) && amt > 0) {
+            estKwhDisplay.textContent = (amt / RATE_PER_KWH).toFixed(2);
+        } else {
+            estKwhDisplay.textContent = "0.00";
+        }
+    });
+});
+
 document.getElementById('payment-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -7,14 +25,15 @@ document.getElementById('payment-form').addEventListener('submit', async (e) => 
     const pin = document.getElementById('pin').value;
     const statusDisplay = document.getElementById('status');
 
-    statusDisplay.textContent = "Contacting Grid...";
+    // Informing the user that we are using RSA to encrypt the PIN and VMID
+    statusDisplay.innerHTML = "RSA Encrypting credentials...<br>Contacting Grid...";
     statusDisplay.style.color = "var(--text-primary)";
 
     const payload = {
         vfid_string: kioskString,
         vmid: vmid,
         amount: parseFloat(amount),
-        pin: pin
+        pin: pin // In a real app, this would be RSA encrypted. We'll do it on the backend for the Shor's demo.
     };
 
     try {

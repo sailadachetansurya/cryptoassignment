@@ -3,7 +3,7 @@ from __future__ import annotations
 from flask import Flask, jsonify, request
 
 from franchise.franchise import FranchiseClient
-from grid.bootstrap import seed_required_grid_data
+from grid.bootstrap import seed_required_grid_data, sync_users_to_csv, sync_franchises_to_csv, append_to_test_credentials
 from grid.grid import GridServer
 from kiosk.kiosk import Kiosk
 
@@ -38,6 +38,7 @@ def grid_config() -> object:
 @app.post("/api/user/register")
 def user_register() -> object:
     data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "New User"))
     mobile = str(data.get("mobile", ""))
     pin = str(data.get("pin", ""))
     initial_balance = float(data.get("initial_balance", 0.0))
@@ -45,7 +46,11 @@ def user_register() -> object:
     if not mobile or not pin:
         return jsonify({"ok": False, "message": "mobile and pin are required"}), 400
 
-    uid, vmid = grid.register_user(mobile=mobile, pin=pin, initial_balance=initial_balance)
+    uid, vmid = grid.register_user(name=name, mobile=mobile, pin=pin, initial_balance=initial_balance)
+    
+    sync_users_to_csv(grid)
+    append_to_test_credentials("EV OWNER", f"Name: {name.ljust(15)} | Mobile: {mobile} | VMID: {vmid} | PIN: {pin}")
+    
     return jsonify({"ok": True, "uid": uid, "vmid": vmid})
 
 
@@ -98,6 +103,9 @@ def franchise_register() -> object:
     except ValueError as exc:
         return jsonify({"ok": False, "message": str(exc)}), 400
 
+    sync_franchises_to_csv(grid)
+    append_to_test_credentials("FRANCHISE", f"Name: {name.ljust(20)} | FID: {fid} | Password: {password}")
+
     qr_payload = franchise_client.generate_station_qr_payload()
     return jsonify({"ok": True, "fid": fid, "qr_payload": qr_payload})
 
@@ -117,6 +125,33 @@ def franchise_list() -> object:
         )
     return jsonify(rows)
 
+
+@app.post("/api/user/add_balance")
+def user_add_balance() -> object:
+    data = request.get_json(silent=True) or {}
+    vmid = str(data.get("vmid", ""))
+    amount = float(data.get("amount", 0.0))
+    if not vmid or amount <= 0:
+        return jsonify({"ok": False, "message": "vmid and positive amount required"}), 400
+    uid = grid.users_by_vmid.get(vmid)
+    if not uid:
+        return jsonify({"ok": False, "message": "User not found"}), 404
+    grid.users[uid]["balance"] += amount
+    sync_users_to_csv(grid)
+    return jsonify({"ok": True, "new_balance": grid.users[uid]["balance"]})
+
+@app.post("/api/franchise/add_balance")
+def franchise_add_balance() -> object:
+    data = request.get_json(silent=True) or {}
+    fid = str(data.get("fid", ""))
+    amount = float(data.get("amount", 0.0))
+    if not fid or amount <= 0:
+        return jsonify({"ok": False, "message": "fid and positive amount required"}), 400
+    if fid not in grid.franchises:
+        return jsonify({"ok": False, "message": "Franchise not found"}), 404
+    grid.franchises[fid]["balance"] += amount
+    sync_franchises_to_csv(grid)
+    return jsonify({"ok": True, "new_balance": grid.franchises[fid]["balance"]})
 
 @app.post("/api/franchise/switch")
 def franchise_switch() -> object:
@@ -138,6 +173,10 @@ def grid_refund() -> object:
         return jsonify({"ok": False, "message": "txn_id is required"}), 400
 
     ok = grid.refund_transaction(txn_id=txn_id, reason=reason)
+    if ok:
+        sync_users_to_csv(grid)
+        sync_franchises_to_csv(grid)
+        
     result = grid.get_last_result()
     status = 200 if ok else 400
     return jsonify(result), status
@@ -157,6 +196,10 @@ def user_authorize() -> object:
         return jsonify({"approved": False, "message": "Invalid amount."}), 400
 
     result = kiosk.process_user_payment_detailed(vmid=vmid_input, pin=pin_input, amount=amount, qr_payload=qr_payload)
+    if result["approved"]:
+        sync_users_to_csv(grid)
+        sync_franchises_to_csv(grid)
+        
     status_code = 200 if result["approved"] else 400
     return jsonify(result), status_code
 

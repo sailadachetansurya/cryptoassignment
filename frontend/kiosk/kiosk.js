@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const generateBtn = document.getElementById('generate-btn');
+    const copyBtn = document.getElementById('copy-btn');
     const qrStringDisplay = document.getElementById('qr-string');
     const statusDisplay = document.getElementById('status');
 
@@ -21,6 +22,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     generateBtn.addEventListener('click', fetchNewSessionString);
+    
+    copyBtn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(qrStringDisplay.textContent);
+            copyBtn.textContent = "Copied!";
+            setTimeout(() => {
+                copyBtn.textContent = "Copy VFID String";
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy: ', err);
+        }
+    });
     
     // Auto-generate on load
     fetchNewSessionString();

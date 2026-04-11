@@ -22,6 +22,10 @@
             
             <div class="form-group">
                 <label for="amount">Charging Amount ($):</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 0.85em; color: var(--text-secondary);">Rate: $<span id="rate">0.15</span> / kWh</span>
+                    <span style="font-size: 0.85em; color: var(--accent-color);">Equivalent: <span id="est-kwh">0.00</span> kWh</span>
+                </div>
                 <input type="number" id="amount" placeholder="20" required min="1">
             </div>
             

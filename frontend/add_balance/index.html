@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Balances</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        .grid-panel { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 600px) { .grid-panel { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container" style="max-width: 800px;">
+        <h2>Financial Management Center</h2>
+        <p>Manually adjustment of entity balances. These updates reflect immediately in the database CSV files.</p>
+        
+        <div class="grid-panel">
+            <!-- Add EV Owner Balance -->
+            <div style="background: var(--surface-light); padding: 20px; border-radius: 8px;">
+                <h3>Top-Up EV Owner</h3>
+                <form id="add-user-balance-form">
+                    <div class="form-group">
+                        <label for="vmid">Owner VMID (Vehicle Mobile ID):</label>
+                        <input type="text" id="vmid" placeholder="EV-84729482..." required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="u-amount">Amount ($):</label>
+                        <input type="number" id="u-amount" placeholder="50.00" value="50.00" required step="0.01">
+                    </div>
+                    
+                    <button type="submit" style="background-color: var(--success-color);">Fund Wallet</button>
+                    <div id="u-status" class="status-badge" style="display:none; margin-top: 10px;"></div>
+                </form>
+            </div>
+            
+            <!-- Add Franchise Balance -->
+            <div style="background: var(--surface-light); padding: 20px; border-radius: 8px;">
+                <h3>Fund Franchise Wallet</h3>
+                <form id="add-franchise-balance-form">
+                    <div class="form-group">
+                        <label for="fid">Franchise ID (FID):</label>
+                        <input type="text" id="fid" placeholder="F-284949..." required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="f-amount">Amount ($):</label>
+                        <input type="number" id="f-amount" placeholder="1000.00" value="1000.00" required step="0.01">
+                    </div>
+                    
+                    <button type="submit" style="background-color: var(--success-color);">Fund Franchise</button>
+                    <div id="f-status" class="status-badge" style="display:none; margin-top: 10px;"></div>
+                </form>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; text-align: center;">
+            <a href="../index.html" style="color: var(--accent-color);">Back to Hub</a>
+        </div>
+    </div>
+
+    <script src="add_balance.js"></script>
+</body>
+</html>

@@ -53,11 +53,12 @@ class GridServer:
         """Return the most recent transaction result payload."""
         return dict(self.last_result)
 
-    def register_user(self, mobile: str, pin: str, initial_balance: float = 0.0) -> tuple[str, str]:
+    def register_user(self, name: str, mobile: str, pin: str, initial_balance: float = 0.0) -> tuple[str, str]:
         """Register a user and return (uid, vmid)."""
         uid = derive_uid(mobile, pin)
         vmid = derive_vmid(uid, mobile)
         self.users[uid] = {
+            "name": name,
             "mobile": mobile,
             "pin_hash": self._hash_pin(pin),
             "balance": float(initial_balance),

@@ -16,6 +16,7 @@ REQUIRED_PROVIDER_ZONES = {
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 FRANCHISES_CSV = os.path.join(DATA_DIR, "franchises.csv")
 USERS_CSV = os.path.join(DATA_DIR, "users.csv")
+TEST_CREDENTIALS_TXT = os.path.join(DATA_DIR, "test_credentials.txt")
 
 def _init_csv_files() -> None:
     """Generate default CSV data using the generate file if it does not exist."""
@@ -23,6 +24,26 @@ def _init_csv_files() -> None:
     if not os.path.exists(FRANCHISES_CSV) or not os.path.exists(USERS_CSV):
         gen_script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "generate_data.py")
         subprocess.run(["python", gen_script], check=True)
+
+def sync_users_to_csv(grid: GridServer) -> None:
+    """Overwrite the CSV keeping it in sync with memory balance."""
+    with open(USERS_CSV, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["uid", "vmid", "name", "mobile", "pin_hash", "balance"])
+        for uid, user in grid.users.items():
+            writer.writerow([uid, user["vmid"], user.get("name", "Unknown"), user["mobile"], user["pin_hash"], str(user["balance"])])
+
+def sync_franchises_to_csv(grid: GridServer) -> None:
+    """Overwrite the CSV keeping it in sync with memory balance."""
+    with open(FRANCHISES_CSV, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["fid", "name", "provider", "zone", "password_hash", "balance"])
+        for fid, f_data in grid.franchises.items():
+            writer.writerow([fid, f_data["name"], f_data["provider"], f_data["zone"], f_data["password_hash"], str(f_data["balance"])])
+
+def append_to_test_credentials(entity_type: str, details: str) -> None:
+    with open(TEST_CREDENTIALS_TXT, mode="a", encoding="utf-8") as f:
+        f.write(f"[{entity_type} added via UI] {details}\n")
 
 def seed_required_grid_data(grid: GridServer) -> dict[str, object]:
     """Seed provider/zone mappings, then load existing franchises and users from CSVs."""
@@ -51,6 +72,7 @@ def seed_required_grid_data(grid: GridServer) -> dict[str, object]:
             vmid = row["vmid"]
             mobile = row["mobile"]
             grid.users[uid] = {
+                "name": row["name"],
                 "mobile": mobile,
                 "pin_hash": row["pin_hash"], # Never plaintext in CSV
                 "balance": float(row["balance"]),
