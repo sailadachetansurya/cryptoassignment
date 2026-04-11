@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Franchise Console</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Franchise Console</h2>
+
+        <form id="franchise-form">
+            <div class="form-group">
+                <label for="provider">Provider</label>
+                <input type="text" id="provider" placeholder="Tata Power" required>
+            </div>
+            <div class="form-group">
+                <label for="name">Franchise Name</label>
+                <input type="text" id="name" placeholder="Tata Power TP-Z1 Station" required>
+            </div>
+            <div class="form-group">
+                <label for="zone">Zone Code</label>
+                <input type="text" id="zone" placeholder="TP-Z1" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Station password" required>
+            </div>
+            <div class="form-group">
+                <label for="balance">Initial Balance</label>
+                <input type="number" id="balance" value="1000" min="0" step="1" required>
+            </div>
+            <button type="submit">Register Franchise</button>
+        </form>
+
+        <div class="form-group" style="margin-top: 20px;">
+            <label>Current Kiosk QR Payload</label>
+            <div id="qr-payload" class="crypto-string">Not generated yet.</div>
+        </div>
+
+        <div id="status" class="status-badge">Ready.</div>
+    </div>
+
+    <div class="container">
+        <h3>Registered Franchises</h3>
+        <button id="refresh-btn">Refresh Franchise List</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>FID</th>
+                    <th>Name</th>
+                    <th>Zone</th>
+                    <th>Balance</th>
+                </tr>
+            </thead>
+            <tbody id="franchise-table-body">
+                <tr><td colspan="4" style="text-align:center; color: var(--text-secondary)">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="franchise.js"></script>
+</body>
+</html>

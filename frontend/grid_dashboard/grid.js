@@ -6,31 +6,32 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshBtn.textContent = "Refreshing...";
         
         try {
-            // BACKEND LINK: Replace URL with your actual Python API endpoint
-            // const response = await fetch('http://localhost:5000/api/grid/ledger');
-            // const blocks = await response.json();
-            
-            // Simulated Data
-            setTimeout(() => {
-                const simulatedBlocks = [
-                    { time: new Date().toLocaleTimeString(), hash: "0x3a9b...f12e", amount: "$25.00", status: "Success" },
-                    { time: new Date(Date.now() - 60000).toLocaleTimeString(), hash: "0x89ab...cdef", amount: "$15.00", status: "Failed (Invalid PIN)" },
-                ];
+            const response = await fetch('/api/grid/ledger');
+            if (!response.ok) {
+                throw new Error('Failed to fetch ledger.');
+            }
 
-                ledgerBody.innerHTML = '';
-                simulatedBlocks.forEach(block => {
-                    const statusClass = block.status.includes('Success') ? 'success' : 'fail';
+            const blocks = await response.json();
+            ledgerBody.innerHTML = '';
+
+            if (blocks.length === 0) {
+                ledgerBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-secondary)">No blocks yet.</td></tr>';
+            } else {
+                blocks.forEach(block => {
+                    const displayStatus = block.dispute_or_refund_flag ? `${block.status} (Dispute/Refund)` : block.status;
+                    const statusClass = displayStatus.includes('Success') ? 'success' : 'fail';
                     ledgerBody.innerHTML += `
                         <tr>
                             <td>${block.time}</td>
                             <td style="font-family: monospace;">${block.hash}</td>
                             <td>${block.amount}</td>
-                            <td class="${statusClass}">${block.status}</td>
+                            <td class="${statusClass}">${displayStatus}</td>
                         </tr>
                     `;
                 });
-                refreshBtn.textContent = "Refresh Data";
-            }, 400);
+            }
+
+            refreshBtn.textContent = "Refresh Data";
 
         } catch (error) {
             console.error("Failed to fetch ledger", error);
