@@ -6,6 +6,7 @@ from typing import Any
 
 from crypto.ascon import encrypt_ascon, decrypt_ascon
 from crypto.sha3 import derive_fid, derive_transaction_id, derive_uid, derive_vmid, sha3_hex, verify_sha3, sha3_bytes
+from blockchain.block import Block
 
 
 @dataclass
@@ -110,18 +111,17 @@ class GridServer:
     ) -> None:
         """Append a transaction block to the centralized blockchain list."""
         prev_hash = self.blockchain[-1]["txn_id"] if self.blockchain else "GENESIS"
-        self.blockchain.append(
-            {
-                "txn_id": txn_id,
-                "prev_hash": prev_hash,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "amount": float(amount),
-                "status": status,
-                "uid": uid,
-                "fid": fid,
-                "dispute_or_refund_flag": dispute_or_refund_flag,
-            }
+        new_block = Block(
+            txn_id=txn_id,
+            prev_hash=prev_hash,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            amount=float(amount),
+            status=status,
+            uid=uid,
+            fid=fid,
+            dispute_or_refund_flag=dispute_or_refund_flag,
         )
+        self.blockchain.append(new_block.to_dict())
 
     def get_ledger(self) -> list[dict[str, Any]]:
         """Return a copy of the current ledger."""
