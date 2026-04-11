@@ -180,7 +180,7 @@ def grid_ledger() -> object:
 
 @app.get("/api/demo/user")
 def demo_user() -> object:
-    return jsonify({"vmid": demo_user_record["vmid"], "pin": demo_user_record["pin"]})
+    return jsonify({"vmid": demo_user_record["vmid"], "mobile": demo_user_record["mobile"]})
 
 
 if __name__ == "__main__":

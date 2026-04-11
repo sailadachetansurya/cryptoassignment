@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from crypto.sha3 import derive_fid, derive_transaction_id, derive_uid, derive_vmid, sha3_hex, verify_sha3
+from crypto.ascon import encrypt_ascon, decrypt_ascon
+from crypto.sha3 import derive_fid, derive_transaction_id, derive_uid, derive_vmid, sha3_hex, verify_sha3, sha3_bytes
 
 
 @dataclass
@@ -17,6 +18,19 @@ class GridServer:
     franchises: dict[str, dict[str, Any]] = field(default_factory=dict)
     blockchain: list[dict[str, Any]] = field(default_factory=list)
     last_result: dict[str, Any] = field(default_factory=lambda: {"ok": True, "message": "Ready"})
+    grid_master_key: bytes = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Derive a stable grid master key for ASCON encryption."""
+        self.grid_master_key = sha3_bytes("GRID_MASTER_SECRET_2026")[:16]
+
+    def decrypt_vfid(self, vfid_str: str) -> tuple[str | None, str | None]:
+        """Decrypt the LWC VFID string sent from the user app back into the original Kiosk FID and timestamp."""
+        plaintext = decrypt_ascon(vfid_str, self.grid_master_key)
+        if not plaintext or '|' not in plaintext:
+            return None, None
+        fid, timestamp = plaintext.split('|', 1)
+        return fid, timestamp
 
     def initialize_grid(self, provider_zones: dict[str, list[str]]) -> None:
         """Initialize provider-to-zone mappings for franchise validation."""
@@ -112,14 +126,19 @@ class GridServer:
         """Return a copy of the current ledger."""
         return list(self.blockchain)
 
-    def process_transaction(self, vmid: str, pin: str, amount: float, fid: str) -> bool:
-        """Validate VMID/PIN/funds, transfer funds, and append a block."""
+    def process_transaction(self, vmid: str, pin: str, amount: float, vfid_str: str) -> bool:
+        """Validate VFID, VMID/PIN/funds, transfer funds, and append a block."""
+        fid, timestamp = self.decrypt_vfid(vfid_str)
+        if not fid:
+            self.last_result = {"ok": False, "message": "Invalid VFID QR String (Decryption failed)", "code": "QR_MISMATCH"}
+            return False
+            
         uid = self.users_by_vmid.get(vmid)
         if not uid:
             self.last_result = {"ok": False, "message": "VMID not found", "code": "VMID_NOT_FOUND"}
             return False
         if fid not in self.franchises:
-            self.last_result = {"ok": False, "message": "Invalid franchise", "code": "FID_NOT_FOUND"}
+            self.last_result = {"ok": False, "message": "Invalid franchise decoded", "code": "FID_NOT_FOUND"}
             return False
 
         user = self.users[uid]

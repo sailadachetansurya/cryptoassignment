@@ -1,25 +1,25 @@
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
-from crypto.ascon import decrypt_ascon, encrypt_ascon
+from crypto.ascon import encrypt_ascon
 from crypto.sha3 import sha3_bytes
 from grid.grid import GridServer
 
 
 @dataclass
 class Kiosk:
-    """Kiosk service that handles QR generation, verification, and payment relay."""
+    """Kiosk service that requests VFID generation and handles payment relay."""
 
     kiosk_id: str
     grid: GridServer
     fid: str = "FID-PLACEHOLDER"
     qr_payload: str = ""
-    crypto_key: bytes = field(init=False, repr=False)
+    grid_master_key: bytes = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        """Derive a stable per-kiosk key used for ASCON QR payloads."""
-        self.crypto_key = sha3_bytes(f"kiosk:{self.kiosk_id}")[:16]
-
+        """Kiosk uses the identical Grid pre-shared key for ASCON payloads in this demo."""
+        self.grid_master_key = sha3_bytes("GRID_MASTER_SECRET_2026")[:16]
 
     # -------------------------------------------------------------------------
     # Franchise Endpoint Functions
@@ -30,8 +30,10 @@ class Kiosk:
         self.fid = fid
 
     def generate_qr_payload(self) -> str:
-        """Encrypt the kiosk's FID and return a QR-ready payload string."""
-        self.qr_payload = encrypt_ascon(self.fid, self.crypto_key)
+        """The Kiosk (LWC) encrypts its stored FID and current timestamp using ASCON."""
+        timestamp = datetime.now(timezone.utc).isoformat()
+        plaintext = f"{self.fid}|{timestamp}"
+        self.qr_payload = encrypt_ascon(plaintext, self.grid_master_key)
         return self.qr_payload
 
     def get_franchise_qr_payload(self) -> str:
@@ -45,11 +47,6 @@ class Kiosk:
     # User Endpoint Functions
     # -------------------------------------------------------------------------
 
-    def verify_qr_payload(self, qr_payload: str) -> bool:
-        """Decrypt a QR payload and confirm it matches the kiosk FID."""
-        recovered_fid = decrypt_ascon(qr_payload, self.crypto_key)
-        return bool(recovered_fid) and recovered_fid == self.fid
-
     def build_user_payment_request(self, vmid: str, pin: str, amount: float, qr_payload: str) -> dict[str, object]:
         """Build the kiosk-side request object from user supplied data."""
         return {
@@ -61,11 +58,8 @@ class Kiosk:
 
 
     def process_user_payment(self, vmid: str, pin: str, amount: float, qr_payload: str) -> bool:
-        """Validate the user QR payload and send the payment to the grid."""
-        if not self.verify_qr_payload(qr_payload):
-            self.grid.last_result = {"ok": False, "message": "QR/FID mismatch", "code": "QR_MISMATCH"}
-            return False
-        return self.forward_transaction(vmid=vmid, pin=pin, amount=amount)
+        """Pass the payment request directly to the grid server so it handles decryption and verification."""
+        return self.grid.process_transaction(vmid=vmid, pin=pin, amount=amount, vfid_str=qr_payload)
 
     def process_user_payment_detailed(self, vmid: str, pin: str, amount: float, qr_payload: str) -> dict[str, Any]:
         """Process payment and return detailed status payload."""
@@ -77,12 +71,8 @@ class Kiosk:
 
 
     # -------------------------------------------------------------------------
-    # Grid Endpoint Functions
+    # Display Function
     # -------------------------------------------------------------------------
-
-    def forward_transaction(self, vmid: str, pin: str, amount: float) -> bool:
-        """Forward a validated payment request to the grid server."""
-        return self.grid.process_transaction(vmid=vmid, pin=pin, amount=amount, fid=self.fid)
 
     def display_status(self, approved: bool) -> str:
         """Return a simple kiosk status message for the transaction result."""
