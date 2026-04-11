@@ -62,6 +62,10 @@ class Kiosk:
         """Pass the payment request directly to the grid server so it handles decryption and verification."""
         return self.grid.process_transaction(vmid=vmid, pin=pin, amount=amount, vfid_str=qr_payload)
 
+    def notify_franchise_of_approval(self) -> str:
+        """Simulate sending the 'APPROVED' message to the Franchise system, which then unlocks the physical charger."""
+        return f"Franchise {self.fid} received 'APPROVED'. Charger unlocked."
+
     def process_user_payment_detailed(self, vmid: str, pin: str, amount: float, qr_payload: str) -> dict[str, Any]:
         """Process payment and return detailed status payload."""
         approved = self.process_user_payment(vmid=vmid, pin=pin, amount=amount, qr_payload=qr_payload)
@@ -77,6 +81,10 @@ class Kiosk:
                 result["status"] = "DISPENSE_FAILED"
                 result["message"] = "Payment authorized, but kiosk hardware failed to dispense. Wallet refunded."
                 return result
+
+        if approved:
+            # Kiosk signals the franchise, franchise replies with the unlock confirmation
+            result["message"] = self.notify_franchise_of_approval()
 
         result["approved"] = approved
         result["status"] = self.display_status(approved)
