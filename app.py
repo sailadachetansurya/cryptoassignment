@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
 from flask import Flask, jsonify, request
 
 from franchise.franchise import FranchiseClient
@@ -9,6 +13,46 @@ from kiosk.kiosk import Kiosk
 
 
 app = Flask(__name__, static_folder="frontend", static_url_path="")
+
+SNOOP_LOG_PATH = (Path(__file__).resolve().parent / "snoop_packet.log")
+
+
+def log_snoop_packet(packet_type: str, encrypted_payload: list[int], meta: dict[str, object] | None = None) -> None:
+    """Append intercepted RSA payload metadata for demo wiretap simulation."""
+    try:
+        entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "packet_type": packet_type,
+            "n": 3233,
+            "e": 17,
+            "encrypted_payload": encrypted_payload,
+            "meta": meta or {},
+        }
+        with SNOOP_LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        # Snoop logging must never break the main transaction flow.
+        pass
+
+
+def _read_snoop_entries(limit: int = 20) -> list[dict[str, object]]:
+    """Read the latest snoop log entries (most recent first)."""
+    if not SNOOP_LOG_PATH.exists() or SNOOP_LOG_PATH.stat().st_size == 0:
+        return []
+
+    with SNOOP_LOG_PATH.open("r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+
+    entries: list[dict[str, object]] = []
+    for line in reversed(lines[-max(1, limit):]):
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(entry, dict):
+            entries.append(entry)
+    return entries
+
 
 grid = GridServer()
 seed_data = seed_required_grid_data(grid)
@@ -38,19 +82,25 @@ def grid_config() -> object:
 @app.post("/api/user/register")
 def user_register() -> object:
     data = request.get_json(silent=True) or {}
-    name = str(data.get("name", "New User"))
-    mobile = str(data.get("mobile", ""))
-    pin = str(data.get("pin", ""))
-    initial_balance = float(data.get("initial_balance", 0.0))
+    encrypted_payload = data.get("encrypted_payload")
 
-    if not mobile or not pin:
-        return jsonify({"ok": False, "message": "mobile and pin are required"}), 400
+    if not isinstance(encrypted_payload, list) or not encrypted_payload:
+        return jsonify({"ok": False, "message": "encrypted_payload is required"}), 400
 
-    uid, vmid = grid.register_user(name=name, mobile=mobile, pin=pin, initial_balance=initial_balance)
-    
+    try:
+        uid, vmid, name, mobile, pin = grid.register_user_encrypted(encrypted_payload)
+    except ValueError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+
+    log_snoop_packet(
+        packet_type="user_registration",
+        encrypted_payload=encrypted_payload,
+        meta={"uid": uid, "vmid": vmid, "mobile": mobile},
+    )
+
     sync_users_to_csv(grid)
     append_to_test_credentials("EV OWNER", f"Name: {name.ljust(15)} | Mobile: {mobile} | VMID: {vmid} | PIN: {pin}")
-    
+
     return jsonify({"ok": True, "uid": uid, "vmid": vmid})
 
 
@@ -94,25 +144,21 @@ def user_activate() -> object:
 @app.post("/api/franchise/register")
 def franchise_register() -> object:
     data = request.get_json(silent=True) or {}
-    name = str(data.get("name", ""))
-    zone_code = str(data.get("zone_code", ""))
-    password = str(data.get("password", ""))
-    provider = str(data.get("provider", ""))
-    initial_balance = float(data.get("initial_balance", 0.0))
+    encrypted_payload = data.get("encrypted_payload")
 
-    if not name or not zone_code or not password or not provider:
-        return jsonify({"ok": False, "message": "name, provider, zone_code, and password are required"}), 400
+    if not isinstance(encrypted_payload, list) or not encrypted_payload:
+        return jsonify({"ok": False, "message": "encrypted_payload is required"}), 400
 
     try:
-        fid = franchise_client.register_franchise(
-            name=name,
-            zone_code=zone_code,
-            password=password,
-            initial_balance=initial_balance,
-            provider=provider,
-        )
+        fid, name, password = grid.register_franchise_encrypted(encrypted_payload)
     except ValueError as exc:
         return jsonify({"ok": False, "message": str(exc)}), 400
+
+    log_snoop_packet(
+        packet_type="franchise_registration",
+        encrypted_payload=encrypted_payload,
+        meta={"fid": fid, "name": name},
+    )
 
     sync_franchises_to_csv(grid)
     append_to_test_credentials("FRANCHISE", f"Name: {name.ljust(20)} | FID: {fid} | Password: {password}")
@@ -187,7 +233,7 @@ def grid_refund() -> object:
     if ok:
         sync_users_to_csv(grid)
         sync_franchises_to_csv(grid)
-        
+
     result = grid.get_last_result()
     status = 200 if ok else 400
     return jsonify(result), status
@@ -209,6 +255,12 @@ def user_authorize() -> object:
     if not isinstance(encrypted_payload, list) or not encrypted_payload:
         return jsonify({"approved": False, "message": "encrypted_payload is required"}), 400
 
+    log_snoop_packet(
+        packet_type="user_payment_authorize",
+        encrypted_payload=encrypted_payload,
+        meta={"vfid": qr_payload},
+    )
+
     result = kiosk.process_user_payment_detailed(
         vmid="",
         pin="",
@@ -219,7 +271,7 @@ def user_authorize() -> object:
     if result["approved"]:
         sync_users_to_csv(grid)
         sync_franchises_to_csv(grid)
-        
+
     status_code = 200 if result["approved"] else 400
     return jsonify(result), status_code
 
@@ -244,6 +296,20 @@ def grid_ledger() -> object:
 @app.get("/api/demo/user")
 def demo_user() -> object:
     return jsonify({"vmid": demo_user_record["vmid"], "mobile": demo_user_record["mobile"]})
+
+
+@app.get("/api/attacker/packets")
+def attacker_packets() -> object:
+    """Expose intercepted packets with simulated Shor-attack preview for dashboard."""
+    limit_raw = request.args.get("limit", "20")
+    try:
+        limit = int(limit_raw)
+    except ValueError:
+        limit = 20
+    limit = max(1, min(limit, 100))
+
+    entries = _read_snoop_entries(limit=limit)
+    return jsonify({"entries": entries, "snoop_log_path": str(SNOOP_LOG_PATH)})
 
 
 if __name__ == "__main__":

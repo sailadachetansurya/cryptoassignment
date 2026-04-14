@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from crypto.ascon import encrypt_ascon, decrypt_ascon
+from crypto.rsa import rsa_decrypt_text
 from crypto.sha3 import derive_fid, derive_transaction_id, derive_uid, derive_vmid, sha3_hex, verify_sha3, sha3_bytes
 from blockchain.block import Block
 
@@ -22,9 +23,6 @@ class GridServer:
     last_result: dict[str, Any] = field(default_factory=lambda: {"ok": True, "message": "Ready"})
     vfid_valid_window_seconds: int = 120
     grid_master_key: bytes = field(init=False, repr=False)
-    rsa_public_n: int = field(default=3233, init=False)
-    rsa_public_e: int = field(default=17, init=False)
-    rsa_private_d: int = field(default=2753, init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Derive a stable grid master key for ASCON encryption."""
@@ -33,9 +31,9 @@ class GridServer:
     def decrypt_vfid(self, vfid_str: str) -> tuple[str | None, str | None]:
         """Decrypt the LWC VFID string sent from the user app back into the original Kiosk FID and timestamp."""
         plaintext = decrypt_ascon(vfid_str, self.grid_master_key)
-        if not plaintext or '|' not in plaintext:
+        if not plaintext or "|" not in plaintext:
             return None, None
-        fid, timestamp = plaintext.split('|', 1)
+        fid, timestamp = plaintext.split("|", 1)
         return fid, timestamp
 
     def _is_vfid_timestamp_fresh(self, timestamp_raw: str) -> bool:
@@ -49,16 +47,6 @@ class GridServer:
 
         age_seconds = (datetime.now(timezone.utc) - ts).total_seconds()
         return 0 <= age_seconds <= self.vfid_valid_window_seconds
-
-    def _rsa_decrypt_text(self, encrypted_values: list[int]) -> str:
-        """Decrypt toy RSA encrypted code points into text."""
-        chars: list[str] = []
-        for value in encrypted_values:
-            if not isinstance(value, int):
-                raise ValueError("encrypted_payload must contain integers")
-            decrypted_code = pow(value, self.rsa_private_d, self.rsa_public_n)
-            chars.append(chr(decrypted_code))
-        return "".join(chars)
 
     def initialize_grid(self, provider_zones: dict[str, list[str]]) -> None:
         """Initialize provider-to-zone mappings for franchise validation."""
@@ -104,6 +92,35 @@ class GridServer:
         self.users[uid]["active"] = False
         return True
 
+    def register_user_encrypted(self, encrypted_payload: list[int]) -> tuple[str, str, str, str, str]:
+        """Decrypt and register a user from an RSA-encrypted JSON payload."""
+        try:
+            decrypted_text = rsa_decrypt_text(encrypted_payload)
+            payload = json.loads(decrypted_text)
+        except (ValueError, json.JSONDecodeError):
+            raise ValueError("Invalid encrypted registration payload")
+
+        name = str(payload.get("name", "New User"))
+        mobile = str(payload.get("mobile", ""))
+        pin = str(payload.get("pin", ""))
+        initial_balance_raw = payload.get("initial_balance", 0.0)
+
+        if not mobile or not pin:
+            raise ValueError("mobile and pin are required")
+
+        try:
+            initial_balance = float(initial_balance_raw)
+        except (TypeError, ValueError):
+            raise ValueError("initial_balance must be a number")
+
+        uid, vmid = self.register_user(
+            name=name,
+            mobile=mobile,
+            pin=pin,
+            initial_balance=initial_balance,
+        )
+        return uid, vmid, name, mobile, pin
+
     def activate_user_account(self, vmid: str) -> bool:
         """Re-activate a user account."""
         uid = self.users_by_vmid.get(vmid)
@@ -134,6 +151,37 @@ class GridServer:
             "balance": float(initial_balance),
         }
         return fid
+
+    def register_franchise_encrypted(self, encrypted_payload: list[int]) -> tuple[str, str, str]:
+        """Decrypt and register a franchise from an RSA-encrypted JSON payload."""
+        try:
+            decrypted_text = rsa_decrypt_text(encrypted_payload)
+            payload = json.loads(decrypted_text)
+        except (ValueError, json.JSONDecodeError):
+            raise ValueError("Invalid encrypted registration payload")
+
+        name = str(payload.get("name", ""))
+        zone_code = str(payload.get("zone_code", ""))
+        password = str(payload.get("password", ""))
+        provider = str(payload.get("provider", ""))
+        initial_balance_raw = payload.get("initial_balance", 0.0)
+
+        if not name or not zone_code or not password or not provider:
+            raise ValueError("name, provider, zone_code, and password are required")
+
+        try:
+            initial_balance = float(initial_balance_raw)
+        except (TypeError, ValueError):
+            raise ValueError("initial_balance must be a number")
+
+        fid = self.register_franchise(
+            name=name,
+            zone_code=zone_code,
+            password=password,
+            initial_balance=initial_balance,
+            provider=provider,
+        )
+        return fid, name, password
 
     def _append_block(
         self,
@@ -173,7 +221,7 @@ class GridServer:
             return False
 
         try:
-            decrypted_text = self._rsa_decrypt_text(encrypted_payload)
+            decrypted_text = rsa_decrypt_text(encrypted_payload)
             payload = json.loads(decrypted_text)
         except (ValueError, json.JSONDecodeError):
             self.last_result = {"ok": False, "message": "Invalid encrypted payload", "code": "ENCRYPTED_PAYLOAD_INVALID"}
@@ -204,7 +252,7 @@ class GridServer:
         if not timestamp or not self._is_vfid_timestamp_fresh(timestamp):
             self.last_result = {"ok": False, "message": "VFID expired. Please refresh kiosk QR.", "code": "VFID_EXPIRED"}
             return False
-            
+
         uid = self.users_by_vmid.get(vmid)
         if not uid:
             self.last_result = {"ok": False, "message": "VMID not found", "code": "VMID_NOT_FOUND"}
@@ -259,40 +307,51 @@ class GridServer:
             if uid not in self.users or fid not in self.franchises:
                 self.last_result = {"ok": False, "message": "Refund parties missing", "code": "REFUND_PARTIES_MISSING"}
                 return False
-
             if self.franchises[fid]["balance"] < amount:
-                self.last_result = {
-                    "ok": False,
-                    "message": "Franchise balance insufficient for refund",
-                    "code": "REFUND_INSUFFICIENT_FRANCHISE_BALANCE",
-                }
+                self.last_result = {"ok": False, "message": "Franchise has insufficient balance for refund", "code": "REFUND_INSUFFICIENT_FRANCHISE_BALANCE"}
                 return False
 
             self.franchises[fid]["balance"] -= amount
             self.users[uid]["balance"] += amount
-            block["dispute_or_refund_flag"] = True
 
-            refund_txn_id = derive_transaction_id(
+            reversal_id = derive_transaction_id(
                 uid=uid,
                 fid=fid,
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 amount=f"-{amount:.2f}",
             )
             self._append_block(
-                txn_id=refund_txn_id,
+                txn_id=reversal_id,
                 amount=-amount,
                 status=f"Refunded: {reason}",
                 uid=uid,
                 fid=fid,
                 dispute_or_refund_flag=True,
             )
-            self.last_result = {
-                "ok": True,
-                "message": "Refund completed",
-                "code": "REFUND_COMPLETED",
-                "txn_id": refund_txn_id,
-            }
+
+            block["dispute_or_refund_flag"] = True
+            self.last_result = {"ok": True, "message": "Refund successful", "code": "REFUND_OK", "refund_txn_id": reversal_id}
             return True
 
-        self.last_result = {"ok": False, "message": "Transaction not found", "code": "TXN_NOT_FOUND"}
+        self.last_result = {"ok": False, "message": "Original transaction not found", "code": "TXN_NOT_FOUND"}
         return False
+
+    def export_ledger_json(self) -> str:
+        """Export ledger as JSON string."""
+        return json.dumps(self.blockchain, indent=2)
+
+    def issue_vfid(self, fid: str) -> str:
+        """
+        Generate encrypted VFID payload to be shown as QR at kiosk.
+        Payload format before encryption: 'fid|timestamp'
+        """
+        ts = datetime.now(timezone.utc).isoformat()
+        plaintext = f"{fid}|{ts}"
+        return encrypt_ascon(plaintext, self.grid_master_key)
+
+    def get_balances(self, vmid: str, fid: str) -> tuple[float | None, float | None]:
+        """Return (user_balance, franchise_balance)."""
+        uid = self.users_by_vmid.get(vmid)
+        if not uid or fid not in self.franchises:
+            return None, None
+        return float(self.users[uid]["balance"]), float(self.franchises[fid]["balance"])

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Quantum Attacker Dashboard</title>
+        <link rel="stylesheet" href="../style.css" />
+        <style>
+            .danger-title {
+                color: var(--danger-color);
+            }
+
+            .meta {
+                font-size: 0.9em;
+                color: var(--text-secondary);
+            }
+
+            .card {
+                background: var(--surface-light);
+                border: 1px solid var(--border-color);
+                border-radius: 10px;
+                padding: 14px;
+                margin-bottom: 12px;
+            }
+
+            .controls {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            th,
+            td {
+                padding: 8px;
+                border-bottom: 1px solid var(--border-color);
+                text-align: left;
+                vertical-align: top;
+            }
+
+            pre {
+                margin: 10px 0 0 0;
+                padding: 10px;
+                border-radius: 8px;
+                background: #111827;
+                color: #e5e7eb;
+                overflow-x: auto;
+                font-size: 0.84em;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container" style="max-width: 980px">
+            <h2 class="danger-title">⚠ Quantum Attacker Dashboard</h2>
+            <p style="color: var(--text-secondary)">
+                Simulated wiretap view: intercepted RSA payloads are decrypted
+                after factoring <code>n</code> (Shor simulation). This
+                demonstrates why tiny RSA is insecure.
+            </p>
+
+            <div class="card">
+                <div class="controls">
+                    <button
+                        id="refresh-btn"
+                        style="width: auto; padding: 8px 14px"
+                    >
+                        Refresh Now
+                    </button>
+
+                    <label>
+                        Poll every
+                        <select id="poll-interval">
+                            <option value="1">1s</option>
+                            <option value="2" selected>2s</option>
+                            <option value="5">5s</option>
+                        </select>
+                    </label>
+
+                    <label
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 6px;
+                        "
+                    >
+                        <input type="checkbox" id="auto-refresh" checked />
+                        Auto-refresh
+                    </label>
+
+                    <span id="status-badge" class="meta"
+                        >Waiting for intercepted packets...</span
+                    >
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top: 0">Intercepted Packets</h3>
+                <div style="overflow-x: auto">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Timestamp</th>
+                                <th>Packet Type</th>
+                                <th>Public Key (n, e)</th>
+                                <th>Meta</th>
+                                <th>Recovered</th>
+                            </tr>
+                        </thead>
+                        <tbody id="packet-table-body">
+                            <tr>
+                                <td
+                                    colspan="6"
+                                    style="
+                                        text-align: center;
+                                        color: var(--text-secondary);
+                                    "
+                                >
+                                    No intercepted packets yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top: 0">Recovered Payload Preview</h3>
+                <pre id="recovered-preview">
+Click a row to inspect decrypted payload details.
+                </pre>
+            </div>
+
+            <div style="margin-top: 24px; text-align: center">
+                <a href="../index.html" style="color: var(--accent-color)"
+                    >Back to Hub</a
+                >
+            </div>
+        </div>
+
+        <script src="attacker.js"></script>
+    </body>
+</html>

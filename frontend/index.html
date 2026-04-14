@@ -1,30 +1,64 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EV Charging Payment Gateway</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="container" style="text-align: center;">
-        <h1>EV Charging Network Simulator</h1>
-        <p style="color: var(--text-secondary); margin-bottom: 30px;">
-            Post-Quantum & Lightweight Cryptography Payment Gateway
-        </p>
-        
-        <nav style="display: flex; flex-direction: column; gap: 15px;">
-            <a href="kiosk/index.html">Launch Charging Kiosk</a>
-            <a href="user_device/index.html">Launch EV Owner App</a>
-            <a href="franchise/index.html">View Franchise Directory</a>
-            <a href="grid_dashboard/index.html">Open Grid Authority Dashboard</a>
-            
-            <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 15px 0;">
-            <h3>Management Tools</h3>
-            <a href="register_user/index.html" style="background-color: var(--surface-light); color: var(--text-primary);">Register New User</a>
-            <a href="register_franchise/index.html" style="background-color: var(--surface-light); color: var(--text-primary);">Register New Franchise</a>
-            <a href="add_balance/index.html" style="background-color: var(--surface-light); color: var(--text-primary);">Add Balance (User & Franchise)</a>
-        </nav>
-    </div>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>EV Charging Payment Gateway</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <div class="container" style="text-align: center">
+            <h1>EV Charging Network Simulator</h1>
+            <p style="color: var(--text-secondary); margin-bottom: 30px">
+                Post-Quantum & Lightweight Cryptography Payment Gateway
+            </p>
+
+            <nav style="display: flex; flex-direction: column; gap: 15px">
+                <a href="kiosk/index.html">Launch Charging Kiosk</a>
+                <a href="user_device/index.html">Launch EV Owner App</a>
+                <a href="franchise/index.html">View Franchise Directory</a>
+                <a href="grid_dashboard/index.html"
+                    >Open Grid Authority Dashboard</a
+                >
+                <a
+                    href="attacker_dashboard/index.html"
+                    style="background-color: var(--danger-color); color: white"
+                    >Open Quantum Attacker Dashboard</a
+                >
+
+                <hr
+                    style="
+                        border: 0;
+                        border-top: 1px solid var(--border-color);
+                        margin: 15px 0;
+                    "
+                />
+                <h3>Management Tools</h3>
+                <a
+                    href="register_user/index.html"
+                    style="
+                        background-color: var(--surface-light);
+                        color: var(--text-primary);
+                    "
+                    >Register New User</a
+                >
+                <a
+                    href="register_franchise/index.html"
+                    style="
+                        background-color: var(--surface-light);
+                        color: var(--text-primary);
+                    "
+                    >Register New Franchise</a
+                >
+                <a
+                    href="add_balance/index.html"
+                    style="
+                        background-color: var(--surface-light);
+                        color: var(--text-primary);
+                    "
+                    >Add Balance (User & Franchise)</a
+                >
+            </nav>
+        </div>
+    </body>
 </html>

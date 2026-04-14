@@ -1,8 +1,18 @@
 from __future__ import annotations
 
+import argparse
+import json
 import math
 import random
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SNOOP_LOG_FILE = PROJECT_ROOT / "snoop_packet.log"
+DECRYPTED_LOG_FILE = PROJECT_ROOT / "decrypted_snoop_packets.log"
 
 
 @dataclass(frozen=True)
@@ -66,7 +76,7 @@ def _multiplicative_order(a: int, n: int) -> int | None:
     return r
 
 
-def shor_factor_simulated(n: int, *, max_attempts: int = 32, seed: int = 42) -> tuple[int, int]:
+def shor_factor_simulated(n: int, *, max_attempts: int = 64, seed: int = 42) -> tuple[int, int]:
     """Factor n using a classical simulation of Shor's period-finding flow."""
     if n <= 1:
         raise ValueError("n must be greater than 1")
@@ -101,7 +111,7 @@ def shor_factor_simulated(n: int, *, max_attempts: int = 32, seed: int = 42) -> 
 
 
 def _build_demo_rsa_keys() -> tuple[RsaPublicKey, RsaPrivateKey]:
-    """Build a tiny RSA keypair suitable for demonstration."""
+    """Build the tiny RSA keypair used in the project simulation."""
     p, q = 61, 53
     n = p * q
     phi = (p - 1) * (q - 1)
@@ -120,8 +130,182 @@ def _rsa_decrypt(ciphertext: int, private_key: RsaPrivateKey) -> int:
     return pow(ciphertext, private_key.d, private_key.n)
 
 
+def _decrypt_text_from_values(encrypted_values: list[int], n: int, d: int) -> str:
+    chars: list[str] = []
+    for value in encrypted_values:
+        if not isinstance(value, int):
+            raise ValueError("encrypted payload contains non-integer value")
+        codepoint = pow(value, d, n)
+        chars.append(chr(codepoint))
+    return "".join(chars)
+
+
+def _safe_json_loads(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
+def _read_last_log_entry(logfile: Path) -> dict[str, Any]:
+    if not logfile.exists():
+        raise FileNotFoundError(f"log file not found: {logfile}")
+    if logfile.stat().st_size == 0:
+        raise ValueError("log file is empty")
+
+    with logfile.open("r", encoding="utf-8") as f:
+        lines = [line.strip() for line in f if line.strip()]
+
+    if not lines:
+        raise ValueError("log file has no JSON entries")
+
+    try:
+        entry = json.loads(lines[-1])
+    except json.JSONDecodeError as exc:
+        raise ValueError("last log line is not valid JSON") from exc
+
+    if not isinstance(entry, dict):
+        raise ValueError("last log line must be a JSON object")
+
+    return entry
+
+
+def _extract_payload(entry: dict[str, Any]) -> tuple[list[int], int, int, dict[str, Any]]:
+    encrypted_payload = entry.get("encrypted_payload")
+    if encrypted_payload is None:
+        encrypted_payload = entry.get("ciphertext")
+    n = entry.get("n")
+    e = entry.get("e")
+    meta = entry.get("meta", {})
+
+    if not isinstance(encrypted_payload, list) or not encrypted_payload:
+        raise ValueError("entry.encrypted_payload/ciphertext must be a non-empty list")
+    if not all(isinstance(v, int) for v in encrypted_payload):
+        raise ValueError("entry.encrypted_payload/ciphertext must contain only integers")
+    if not isinstance(n, int) or not isinstance(e, int):
+        raise ValueError("entry must include integer n and e")
+    if not isinstance(meta, dict):
+        meta = {}
+
+    return encrypted_payload, n, e, meta
+
+
+def attack_logged_packet(entry: dict[str, Any]) -> dict[str, Any]:
+    encrypted_payload, n, e, meta = _extract_payload(entry)
+
+    p, q = shor_factor_simulated(n)
+    phi = (p - 1) * (q - 1)
+    d = _mod_inverse(e, phi)
+
+    plaintext = _decrypt_text_from_values(encrypted_payload, n=n, d=d)
+    parsed = _safe_json_loads(plaintext)
+
+    recovered = {
+        "meta": meta,
+        "n": n,
+        "e": e,
+        "p": p,
+        "q": q,
+        "d": d,
+        "plaintext_raw": plaintext,
+        "plaintext_json": parsed,
+    }
+    return recovered
+
+
+def replay_last_logged_attack() -> None:
+    log_path = SNOOP_LOG_FILE
+    entry = _read_last_log_entry(log_path)
+    recovered = attack_logged_packet(entry)
+
+    print("Live Quantum Attacker Demo (single-shot)")
+    print("-" * 64)
+    print(f"Source log file: {log_path}")
+    print(f"Recovered factors: p={recovered['p']}, q={recovered['q']}")
+    print(f"Recovered private exponent d: {recovered['d']}")
+    print(f"Meta: {json.dumps(recovered['meta'], ensure_ascii=False)}")
+
+    payload_json = recovered["plaintext_json"]
+    if isinstance(payload_json, dict):
+        print("Recovered JSON payload:")
+        print(json.dumps(payload_json, indent=2, ensure_ascii=False))
+        if "pin" in payload_json:
+            print(f"Recovered PIN: {payload_json['pin']}")
+    else:
+        print("Recovered plaintext payload (non-JSON):")
+        print(recovered["plaintext_raw"])
+
+
+def live_attack_follow(
+    interval_seconds: float = 1.0,
+) -> None:
+    log_path = SNOOP_LOG_FILE
+    output_path = DECRYPTED_LOG_FILE
+    print("Live Quantum Attacker Demo (follow mode)")
+    print("-" * 64)
+    print(f"Watching: {log_path}")
+    print(f"Decrypted output log: {output_path}")
+    print("Press Ctrl+C to stop.\n")
+
+    last_seen_line = ""
+    try:
+        while True:
+            try:
+                if not log_path.exists() or log_path.stat().st_size == 0:
+                    time.sleep(interval_seconds)
+                    continue
+
+                with log_path.open("r", encoding="utf-8") as f:
+                    lines = [line.strip() for line in f if line.strip()]
+                if not lines:
+                    time.sleep(interval_seconds)
+                    continue
+
+                latest = lines[-1]
+                if latest == last_seen_line:
+                    time.sleep(interval_seconds)
+                    continue
+
+                last_seen_line = latest
+                try:
+                    entry = json.loads(latest)
+                    recovered = attack_logged_packet(entry)
+                except Exception as exc:
+                    print(f"[attacker] new packet seen, but attack failed: {exc}")
+                    time.sleep(interval_seconds)
+                    continue
+
+                print("=" * 64)
+                print("[attacker] intercepted packet decrypted")
+                print(f"meta: {json.dumps(recovered['meta'], ensure_ascii=False)}")
+                print(f"factors: p={recovered['p']} q={recovered['q']}, d={recovered['d']}")
+                payload_json = recovered["plaintext_json"]
+                if isinstance(payload_json, dict):
+                    print(json.dumps(payload_json, indent=2, ensure_ascii=False))
+                    if "pin" in payload_json:
+                        print(f"[attacker] RECOVERED PIN => {payload_json['pin']}")
+                else:
+                    print(recovered["plaintext_raw"])
+                print("=" * 64)
+
+                decrypted_entry = {
+                    "decrypted_at": datetime.now(timezone.utc).isoformat(),
+                    "source_entry": entry,
+                    "recovered": recovered,
+                }
+                with output_path.open("a", encoding="utf-8") as outf:
+                    outf.write(json.dumps(decrypted_entry, ensure_ascii=False) + "\n")
+
+            except Exception as exc:
+                print(f"[attacker] monitor error: {exc}")
+
+            time.sleep(interval_seconds)
+    except KeyboardInterrupt:
+        print("\nStopped live attacker.")
+
+
 def run_shor_demo() -> None:
-    """Simulate Shor's RSA break: factor n, recover d, and decrypt ciphertext."""
+    """Original standalone simulation: factor n, recover d, decrypt toy ciphertext."""
     print("Quantum Vulnerability Demo: Simulated Shor Algorithm on RSA")
     print("-" * 64)
 
@@ -145,5 +329,47 @@ def run_shor_demo() -> None:
     print(f"Break successful: {recovered_plaintext == pin_as_number}")
 
 
-if __name__ == "__main__":
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Simulated Shor demo with optional live logfile attack mode."
+    )
+    parser.add_argument(
+        "--live-attack",
+        action="store_true",
+        help="Read the latest intercepted packet from logfile and attack once.",
+    )
+    parser.add_argument(
+        "--follow",
+        action="store_true",
+        help="Continuously watch logfile and attack each new packet.",
+    )
+
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=1.0,
+        help="Polling interval seconds for --follow mode (default: 1.0).",
+    )
+
+    return parser
+
+
+def main() -> None:
+    parser = _build_arg_parser()
+    args = parser.parse_args()
+
+    if args.follow:
+        live_attack_follow(
+            interval_seconds=max(args.interval, 0.1),
+        )
+        return
+
+    if args.live_attack:
+        replay_last_logged_attack()
+        return
+
     run_shor_demo()
+
+
+if __name__ == "__main__":
+    main()
