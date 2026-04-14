@@ -78,34 +78,71 @@ def _multiplicative_order(a: int, n: int) -> int | None:
 
 def shor_factor_simulated(n: int, *, max_attempts: int = 64, seed: int = 42) -> tuple[int, int]:
     """Factor n using a classical simulation of Shor's period-finding flow."""
-    if n <= 1:
+    print("[Shor Demo] ------------------------------------------------------------")
+    print(f"[Shor Demo] Target composite n = {n}")
+    print("[Shor Demo] Goal: factor n into p and q")
+    print("[Shor Demo] NOTE: True Shor uses a quantum period-finding subroutine (QFT).")
+    print("[Shor Demo]       This implementation simulates that step classically.")
+    print("[Shor Demo] ------------------------------------------------------------")
+
+    if n &lt;= 1:
         raise ValueError("n must be greater than 1")
     if n % 2 == 0:
+        print(f"[Step 0] n is even, trivial factorization: 2 and {n // 2}")
         return 2, n // 2
     if _is_prime(n):
         raise ValueError("n must be composite for Shor factoring demo")
 
     rng = random.Random(seed)
 
-    for _ in range(max_attempts):
+    for attempt in range(1, max_attempts + 1):
+        print(f"\n[Attempt {attempt}/{max_attempts}]")
+        print(f"[Step 1] Pick random a with 1 &lt; a &lt; n")
         a = rng.randrange(2, n - 1)
+        print(f"         Chosen a = {a}")
 
+        print("[Step 2] GCD shortcut: compute gcd(a, n)")
         g = _gcd(a, n)
-        if 1 < g < n:
+        print(f"         gcd({a}, {n}) = {g}")
+        if 1 &lt; g &lt; n:
+            print(f"[Success] Non-trivial factor found immediately via GCD: {g}")
+            print(f"[Success] Other factor = {n // g}")
             return g, n // g
 
+        print("[Step 3] Period finding for f(x) = a^x mod n")
+        print("         [SIMULATION] Running classical order-finding.")
+        print("         [QUANTUM NOTE] Real Shor would use a quantum circuit + QFT here.")
         r = _multiplicative_order(a, n)
-        if r is None or r % 2 != 0:
+        print(f"         Computed period r = {r}")
+
+        print("[Step 4] Check if r is usable")
+        if r is None:
+            print("         r is None -> retry with new a")
+            continue
+        if r % 2 != 0:
+            print("         r is odd -> retry with new a")
             continue
 
+        print("[Step 5] Compute x = a^(r/2) mod n")
         x = pow(a, r // 2, n)
+        print(f"         x = {x}")
+
+        print("[Step 6] Reject if x ≡ ±1 (mod n), else compute factors using gcd(x±1, n)")
         if x in (1, n - 1):
+            print("         x is ±1 mod n -> retry with new a")
             continue
 
         p = _gcd(x - 1, n)
         q = _gcd(x + 1, n)
+        print(f"         gcd(x-1, n) = {p}")
+        print(f"         gcd(x+1, n) = {q}")
+
         if p * q == n and p not in (1, n) and q not in (1, n):
-            return min(p, q), max(p, q)
+            p_final, q_final = min(p, q), max(p, q)
+            print(f"[Success] Factors recovered: p = {p_final}, q = {q_final}")
+            return p_final, q_final
+
+        print("         Candidate factors were not valid -> retry with new a")
 
     raise RuntimeError("failed to factor n within max_attempts")
 
