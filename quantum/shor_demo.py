@@ -85,7 +85,7 @@ def shor_factor_simulated(n: int, *, max_attempts: int = 64, seed: int = 42) -> 
     print("[Shor Demo]       This implementation simulates that step classically.")
     print("[Shor Demo] ------------------------------------------------------------")
 
-    if n &lt;= 1:
+    if n <= 1:
         raise ValueError("n must be greater than 1")
     if n % 2 == 0:
         print(f"[Step 0] n is even, trivial factorization: 2 and {n // 2}")
@@ -97,14 +97,14 @@ def shor_factor_simulated(n: int, *, max_attempts: int = 64, seed: int = 42) -> 
 
     for attempt in range(1, max_attempts + 1):
         print(f"\n[Attempt {attempt}/{max_attempts}]")
-        print(f"[Step 1] Pick random a with 1 &lt; a &lt; n")
+        print(f"[Step 1] Pick random a with 1 < a < n")
         a = rng.randrange(2, n - 1)
         print(f"         Chosen a = {a}")
 
         print("[Step 2] GCD shortcut: compute gcd(a, n)")
         g = _gcd(a, n)
         print(f"         gcd({a}, {n}) = {g}")
-        if 1 &lt; g &lt; n:
+        if 1 < g < n:
             print(f"[Success] Non-trivial factor found immediately via GCD: {g}")
             print(f"[Success] Other factor = {n // g}")
             return g, n // g
