@@ -204,16 +204,18 @@ def simulate_kiosk_failure() -> object:
 def user_authorize() -> object:
     data = request.get_json(silent=True) or {}
     qr_payload = data.get("vfid_string") or data.get("qr_payload") or ""
-    vmid_input = str(data.get("vmid", ""))
-    pin_input = str(data.get("pin", ""))
-    amount_input = data.get("amount", 0)
+    encrypted_payload = data.get("encrypted_payload")
 
-    try:
-        amount = float(amount_input)
-    except (TypeError, ValueError):
-        return jsonify({"approved": False, "message": "Invalid amount."}), 400
+    if not isinstance(encrypted_payload, list) or not encrypted_payload:
+        return jsonify({"approved": False, "message": "encrypted_payload is required"}), 400
 
-    result = kiosk.process_user_payment_detailed(vmid=vmid_input, pin=pin_input, amount=amount, qr_payload=qr_payload)
+    result = kiosk.process_user_payment_detailed(
+        vmid="",
+        pin="",
+        amount=0.0,
+        qr_payload=qr_payload,
+        encrypted_payload=encrypted_payload,
+    )
     if result["approved"]:
         sync_users_to_csv(grid)
         sync_franchises_to_csv(grid)

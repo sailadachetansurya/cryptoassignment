@@ -16,6 +16,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+function modPow(base, exponent, modulus) {
+    if (modulus === 1n) {
+        return 0n;
+    }
+    let result = 1n;
+    let b = base % modulus;
+    let e = exponent;
+    while (e > 0n) {
+        if (e % 2n === 1n) {
+            result = (result * b) % modulus;
+        }
+        e = e / 2n;
+        b = (b * b) % modulus;
+    }
+    return result;
+}
+
+function rsaEncryptText(plainText) {
+    // Toy RSA parameters used only for simulation in this project.
+    const n = 3233n;
+    const e = 17n;
+    return Array.from(plainText).map((ch) => {
+        const m = BigInt(ch.codePointAt(0));
+        return Number(modPow(m, e, n));
+    });
+}
+
 document.getElementById('payment-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -25,15 +52,27 @@ document.getElementById('payment-form').addEventListener('submit', async (e) => 
     const pin = document.getElementById('pin').value;
     const statusDisplay = document.getElementById('status');
 
-    // Informing the user that we are using RSA to encrypt the PIN and VMID
+    // Simulate RSA encryption before transfer to the backend.
     statusDisplay.innerHTML = "RSA Encrypting credentials...<br>Contacting Grid...";
     statusDisplay.style.color = "var(--text-primary)";
 
+    const amountNumber = parseFloat(amount);
+    if (Number.isNaN(amountNumber) || amountNumber <= 0) {
+        statusDisplay.textContent = "Enter a valid positive amount.";
+        statusDisplay.style.color = "var(--danger-color)";
+        return;
+    }
+
+    const clearPayload = JSON.stringify({
+        vmid: vmid,
+        pin: pin,
+        amount: amountNumber,
+        vfid: kioskString
+    });
+
     const payload = {
         vfid_string: kioskString,
-        vmid: vmid,
-        amount: parseFloat(amount),
-        pin: pin // In a real app, this would be RSA encrypted. We'll do it on the backend for the Shor's demo.
+        encrypted_payload: rsaEncryptText(clearPayload)
     };
 
     try {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -19,7 +20,11 @@ class GridServer:
     franchises: dict[str, dict[str, Any]] = field(default_factory=dict)
     blockchain: list[dict[str, Any]] = field(default_factory=list)
     last_result: dict[str, Any] = field(default_factory=lambda: {"ok": True, "message": "Ready"})
+    vfid_valid_window_seconds: int = 120
     grid_master_key: bytes = field(init=False, repr=False)
+    rsa_public_n: int = field(default=3233, init=False)
+    rsa_public_e: int = field(default=17, init=False)
+    rsa_private_d: int = field(default=2753, init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Derive a stable grid master key for ASCON encryption."""
@@ -32,6 +37,28 @@ class GridServer:
             return None, None
         fid, timestamp = plaintext.split('|', 1)
         return fid, timestamp
+
+    def _is_vfid_timestamp_fresh(self, timestamp_raw: str) -> bool:
+        """Check if VFID timestamp is recent enough for transaction processing."""
+        try:
+            ts = datetime.fromisoformat(timestamp_raw)
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return False
+
+        age_seconds = (datetime.now(timezone.utc) - ts).total_seconds()
+        return 0 <= age_seconds <= self.vfid_valid_window_seconds
+
+    def _rsa_decrypt_text(self, encrypted_values: list[int]) -> str:
+        """Decrypt toy RSA encrypted code points into text."""
+        chars: list[str] = []
+        for value in encrypted_values:
+            if not isinstance(value, int):
+                raise ValueError("encrypted_payload must contain integers")
+            decrypted_code = pow(value, self.rsa_private_d, self.rsa_public_n)
+            chars.append(chr(decrypted_code))
+        return "".join(chars)
 
     def initialize_grid(self, provider_zones: dict[str, list[str]]) -> None:
         """Initialize provider-to-zone mappings for franchise validation."""
@@ -135,11 +162,47 @@ class GridServer:
         """Return a copy of the current ledger."""
         return list(self.blockchain)
 
+    def process_encrypted_transaction(self, encrypted_payload: list[int], vfid_str: str) -> bool:
+        """Decrypt user payload and continue normal transaction validation."""
+        fid, timestamp = self.decrypt_vfid(vfid_str)
+        if not fid or not timestamp:
+            self.last_result = {"ok": False, "message": "Invalid VFID QR String (Decryption failed)", "code": "QR_MISMATCH"}
+            return False
+        if not self._is_vfid_timestamp_fresh(timestamp):
+            self.last_result = {"ok": False, "message": "VFID expired. Please refresh kiosk QR.", "code": "VFID_EXPIRED"}
+            return False
+
+        try:
+            decrypted_text = self._rsa_decrypt_text(encrypted_payload)
+            payload = json.loads(decrypted_text)
+        except (ValueError, json.JSONDecodeError):
+            self.last_result = {"ok": False, "message": "Invalid encrypted payload", "code": "ENCRYPTED_PAYLOAD_INVALID"}
+            return False
+
+        payload_vfid = str(payload.get("vfid", ""))
+        if payload_vfid != vfid_str:
+            self.last_result = {"ok": False, "message": "Encrypted payload VFID mismatch", "code": "PAYLOAD_VFID_MISMATCH"}
+            return False
+
+        vmid = str(payload.get("vmid", ""))
+        pin = str(payload.get("pin", ""))
+        amount_value = payload.get("amount", 0)
+        try:
+            amount = float(amount_value)
+        except (TypeError, ValueError):
+            self.last_result = {"ok": False, "message": "Invalid amount in encrypted payload", "code": "INVALID_AMOUNT"}
+            return False
+
+        return self.process_transaction(vmid=vmid, pin=pin, amount=amount, vfid_str=vfid_str)
+
     def process_transaction(self, vmid: str, pin: str, amount: float, vfid_str: str) -> bool:
         """Validate VFID, VMID/PIN/funds, transfer funds, and append a block."""
         fid, timestamp = self.decrypt_vfid(vfid_str)
         if not fid:
             self.last_result = {"ok": False, "message": "Invalid VFID QR String (Decryption failed)", "code": "QR_MISMATCH"}
+            return False
+        if not timestamp or not self._is_vfid_timestamp_fresh(timestamp):
+            self.last_result = {"ok": False, "message": "VFID expired. Please refresh kiosk QR.", "code": "VFID_EXPIRED"}
             return False
             
         uid = self.users_by_vmid.get(vmid)
